@@ -2,7 +2,7 @@
 
 **Purpose of this file:** hand to a second reviewer (human or LLM) together with the original spec ("In-Browser Voice Agent for Sales Simulation & Roleplay"). It states the confirmed requirements, what is and isn't achievable, and a concrete change list against the original. The final section lists the claims I'm least sure of. Please try to break them.
 
-Items marked **[verify]** are from memory and not checked against live docs or measured.
+Items marked **[verify]** are from memory and not checked against live docs or measured. Most were then checked by web search on 2026-10-21. **§7 has the results and sources and overrides anything earlier in this file that conflicts with it.** Hardware tokens/sec and Hinglish STT accuracy still need measuring.
 
 ---
 
@@ -92,8 +92,8 @@ Session store (IndexedDB): transcript, scorecard, resume state; export JSON/CSV
 | Layer | Default | Upgrade | Offline / fallback |
 |---|---|---|---|
 | STT | Web Speech API (Chrome/Edge), `hi-IN` or `en-IN` toggle | Cloud multilingual STT via short-lived token | Whisper-small/Moonshine via `@huggingface/transformers` v3 (English-centric for Moonshine) |
-| LLM | **Cloud LLM via thin serverless proxy** (best Hindi, any laptop) | Larger cloud model for the scorecard | On-device WebLLM: Qwen2.5-0.5B/1.5B (English), Qwen3-1.7B (better multilingual) **[verify availability and disable thinking mode]** |
-| TTS | `speechSynthesis` with per-language voice selection | Cloud neural TTS (for example Azure `hi-IN`/`en-IN`) | Kokoro-js (English) |
+| LLM | **Cloud LLM via thin serverless proxy** (best Hindi, any laptop) | Larger cloud model for the scorecard | On-device WebLLM. 8 GB: Qwen2.5-0.5B (945 MB) / Llama-3.2-1B (879 MB). 16 GB: Qwen2.5-1.5B (1.6 GB), Qwen3-1.7B (2.0 GB, `extra_body: { enable_thinking: false }`), gemma-2-2b (1.9 GB, best Hindi tokenizer). See §7. |
+| TTS | `speechSynthesis` with per-language voice selection | Cloud neural TTS (for example Azure `hi-IN`/`en-IN`) | Kokoro-js, **English only** (kokoro-js ships US/UK voices only) |
 
 **On "no backend":** a cloud LLM needs an API key that can't ship in client JS. A ~30-line serverless function (for example a Cloudflare Worker) that holds the key and streams the response is enough. It has no database, no auth system and no state.
 - It needs a minimal abuse guard such as a shared passcode, a per-IP rate limit or Turnstile. Cost leakage is the only risk.
@@ -113,9 +113,9 @@ Session store (IndexedDB): transcript, scorecard, resume state; export JSON/CSV
 
 ### §2 Three Pillars
 - **STT:** keep Web Speech as the default but document the one-language-per-session limit, the network requirement and the auto-stop behaviour. Add the language toggle (`en-IN` / `hi-IN`) and a note that Roman-script versus Devanagari output is inconsistent.
-- **Secondary STT:** change `@xenova/transformers` to `@huggingface/transformers` v3. Note that Whisper isn't natively streaming and that Whisper-tiny/base have weak Hindi. Consider Whisper-small, which is heavier.
+- **Secondary STT:** change `@xenova/transformers` to `@huggingface/transformers` (currently v4.x). Note that Whisper isn't natively streaming and that Whisper-tiny/base have weak Hindi. Consider Whisper-small, which is heavier.
 - **LLM:** replace "Qwen2.5-1.5B exceptional Hindi/Hinglish". Small Qwen models are mediocre at Hindi. Add Qwen3-1.7B as a candidate and require an evaluation on a Hindi/Hinglish test set before choosing a default. Add the cloud provider (§3).
-- **TTS:** `phonon-tts` and "Phonon-31M, <80 ms" are unverified. I could not confirm the package exists. Demote it to a spike item. Default to `speechSynthesis`, with Kokoro as an English-only on-device option.
+- **TTS:** remove `phonon-tts`. Gradium Phonon exists, but it is a private-beta, licensed binary of about 100M parameters, not a ~31M npm package. It supports EN/FR/DE/ES/PT only, with **no Hindi** (§7). Default to `speechSynthesis`, with Kokoro-js as an English-only on-device option.
 
 ### §3 State machine and barge-in
 - Add states `ERROR`, `ENDED` and `INTERRUPTED`.
@@ -238,3 +238,49 @@ recognition.onend = () => { if (sessionActive) restartWithBackoff(); };
 8. Cloud LLM cost per 30-minute call being cents.
 9. `phonon-tts` / Phonon-31M exists and meets the stated latency (I couldn't verify it).
 10. The decision to default to a cloud LLM. If the owner truly wants zero server and zero per-call cost, the Hindi quality target probably needs relaxing. Is that a better trade than a stateless proxy?
+
+---
+
+## 7. Verification results (web search, 2026-10-21)
+
+| # | Claim | Result | Impact on design |
+|---|---|---|---|
+| 1 | `phonon-tts` npm / Phonon-31M WASM | **False as written.** Gradium Phonon is real but in private beta, shipped as a licensed binary, ~100M params, CPU-only. Languages: EN, FR, DE, ES, PT. **No Hindi.** No public `phonon-tts` npm package found. | Remove from spec. |
+| 2 | Kokoro Hindi voices | Kokoro-82M (Python) has Hindi voices (`hf_alpha`, `hf_beta`, `hm_omega`, `hm_psi`). **kokoro-js documents only 28 US/UK English voices.** | Kokoro-js is English-only. It's not an option for Hindi. |
+| 3 | WebLLM Qwen3 availability, thinking off | **Confirmed.** Qwen3-0.6B/1.7B/4B/8B, Qwen3.5-0.8B/2B/4B/9B, gemma3-1b, gemma-2-2b and gemma-4-E2B are in `prebuiltAppConfig`. The official `examples/qwen3` disables thinking with `extra_body: { enable_thinking: false }`. | Use that flag. Strip `<think>` blocks from history. |
+| 4 | VRAM needs (WebLLM `vram_required_MB`, q4f16_1) | Qwen2.5-0.5B **945**; Llama-3.2-1B **879**; gemma3-1b **711**; Qwen3-0.6B **1403**; Qwen2.5-1.5B **1630**; Qwen3.5-0.8B **1629**; gemma-2-2b **1895**; Qwen3-1.7B **2037**; Llama-3.2-3B **2264**; Qwen2.5-3B **2505**; gemma-4-E2B **3387**. All default to a **4096**-token context. | Original spec's "450 MB for 0.5B" is wrong (≈2×). On 8 GB, only the ≤1 GB models are safe. Qwen3-0.6B needs more VRAM than Qwen2.5-0.5B. |
+| 5 | Small-model Hindi quality | Gemma 3 1B scores 24.9 on Global-MMLU-Lite vs 57.0 for 4B, so the 1B is effectively not multilingual. Gemma 4 E2B: 140+ pretraining languages, 35+ "out of the box", but 3.4 GB VRAM. Qwen3.5 small models: 201 languages per a third-party listing; Hindi quality unmeasured. | No ≤1 GB model is credible for Hindi. On-device Hindi realistically needs gemma-2-2b / Gemma-4-E2B class models on 16 GB machines. This reinforces cloud-by-default for Hindi. |
+| 6 | Hindi tokenisation cost | Hindi tokens per word (LilMoo, 2026): **Qwen2.5 3.07**, Llama-3.2 2.02, **Gemma-2 1.73**. Devanagari costs about 3× more tokens than romanised Hindi on older tokenisers. | Hindi on Qwen uses ~1.8× the tokens of Gemma, so it's slower and fills the 4k context faster. Prefer Gemma for on-device Hindi. 30-minute Hindi calls definitely need summarisation. |
+| 7 | iGPU tokens/sec | **No published WebLLM benchmark for Iris Xe/UHD found.** A secondary source says WebGPU runs ~25–35% below native. | Still unverified. Must measure on target laptops (step 1 of build order). |
+| 8 | Edge natural `hi-IN`/`en-IN` voices in `speechSynthesis` | `en-IN` Neerja natural voices confirmed in Edge's online voice list. `hi-IN` Swara/Madhur exist as Azure voices, but **I couldn't confirm them in Edge's `getVoices()`**. Natural voices are **Edge-only and cloud** (need internet). Edge 150 has a reported bug returning `"Microsoft undefined Online (Natural)"` names. | Enumerate voices at runtime, reject malformed entries, fall back to local voices. Recommend Edge for best Indian voices. |
+| 9 | Chrome `speechSynthesis` cut-off | **Confirmed.** Chromium issue 679437: playback stops after ~15 s on long utterances, especially with Google voices. Splitting into sentence-sized utterances is the standard fix. | Keep sentence chunking (already in design). |
+| 10 | Web Speech STT session behaviour | Chrome ends recognition after ~7–10 s of silence even with `continuous = true`. Restarting in `onend` works; use HTTPS and guard against restart loops. On-device `processLocally` exists (Chrome ~139+). Edge's local language list (en-US, de, it, pt-PT, es, ko) has **no `hi-IN`/`en-IN`**. | Restart-with-backoff confirmed necessary. Hindi STT via Web Speech is cloud-only. |
+| 11 | Web Speech `hi-IN` on Hinglish | **No published evaluation found.** One Android `hi-IN` test reported mixed results, with English words sometimes fine and sometimes mangled. | Unverified. Build a 50–100-utterance Hinglish test set and measure WER. |
+| 12 | Cloud Hinglish STT alternatives | **Deepgram Nova-3** `language=multi` code-switches in real time across 10 languages **including Hindi**. Browser use needs a temporary token from `/auth/grant` (30 s TTL), so it needs a tiny server to mint. Streaming ≈ $0.0077/min (third-party figure). **Sarvam Saaras v3** has a `codemix` output mode and a WebSocket streaming API. Pricing is unverified (a reseller lists ~₹53/hr). | Viable upgrade path if Web Speech fails the Hinglish test. The same thin proxy can mint tokens. |
+| 13 | Cloud LLM cost per 30-minute call | Gemini 2.5 Flash-Lite ≈ **$0.10 / $0.40 per M input/output tokens** (third-party aggregators, Sep 2026; confirm on Google's page). Estimate: ~40 turns × ~6k input tokens ≈ 240k input + ~3k output ≈ **$0.03/call**. | "Cents per call" confirmed for the LLM. |
+| 14 | Cloud TTS cost | Azure neural TTS ≈ **$15 per M characters** (third-party). A 30-minute call has ~40 agent replies × ~150 chars ≈ 6k chars ≈ **$0.09/call**. | Optional upgrade; Edge voices are free. |
+| 15 | `navigator.deviceMemory` caps at 8 | **Outdated.** Newer desktop Chrome can report 16 and 32. It's still a coarse power-of-two value. | Use it as a hint only. Keep the runtime benchmark. |
+| 16 | Storage quota | Chromium: ~60% of **total** disk per origin (informal source; Safari/WebKit documents 60%/80% officially). Firefox: min(10% of disk, 10 GiB). `navigator.storage.persist()` protects from eviction (MDN). | Original "60% of free disk" is wrong. Call `persist()`. |
+| 17 | Transformers.js | Current is **v4.x** (v4.3) with a rewritten WebGPU runtime. Whisper/Moonshine Hindi quality is not documented. | Use `@huggingface/transformers` v4. Don't plan on on-device Hindi STT without testing. |
+
+**Bottom line after verification:** the core recommendation holds and is stronger.
+- For Hindi+English: Web Speech STT (test Hinglish first; Deepgram/Sarvam as fallback), a cloud LLM through a thin proxy (≈$0.03/call), and Edge/browser voices, with sentence chunking.
+- On-device LLMs are viable for **English** on 8 GB (≤1 GB models), and for Hindi only on 16 GB machines with Gemma-class models.
+- Remove phonon-tts and Kokoro from any Hindi path.
+
+### Sources
+- Gradium Phonon: [gradium.ai/ondevice](https://gradium.ai/ondevice), [benchmarks](https://gradium.ai/content/gradium-phonon-on-device-tts-benchmarks-2026), [on-device TTS](https://gradium.ai/content/gradium-phonon-on-device-tts), [theresanaiforthat listing](https://theresanaiforthat.com/model/phonon/)
+- Kokoro: [kokoro-js README](https://github.com/hexgrad/kokoro/tree/main/kokoro.js), [Kokoro voices (Soniqo)](https://soniqo.audio/es/guides/kokoro)
+- WebLLM: [`src/config.ts`](https://github.com/mlc-ai/web-llm/blob/main/src/config.ts), [examples/qwen3](https://github.com/mlc-ai/web-llm/tree/main/examples/qwen3)
+- Gemma: [Gemma 3 model card](https://ai.google.dev/gemma/docs/core/model_card_3), [Gemma 4 E2B (Featherless)](https://featherless.ai/models/google/gemma-4-E2B), [Zilliz FAQ](https://zilliz.com/ai-faq/does-gemma-4-support-multiple-languages)
+- Qwen3.5 small: [DeepInfra](https://deepinfra.com/Qwen/Qwen3.5-0.8B/versions), [Gigazine](https://gigazine.net/gsc_news/en/20260303-qwen-3-5-small)
+- Hindi tokenisation: [LilMoo (arXiv 2603.03508)](https://arxiv.org/pdf/2603.03508), [The Art of Breaking Words (arXiv 2508.06533)](https://arxiv.org/pdf/2508.06533), [Canonical/IITB](https://events.canonical.com/event/154/contributions/1005/attachments/522/840/MACS5.pdf)
+- WebGPU benchmarking: [LLM GPU Benchmark](https://inventivehq.com/tools/developer/llm-gpu-benchmark)
+- Edge voices: [Edge 150 getVoices bug](https://techcommunity.microsoft.com/discussions/edgeinsiderdiscussions/edge-version-150-javascript-speechsynthesis-getvoices-undefined-voices/4538591), [Edge TTS voice list](https://github.com/FoloToy/folotoy-server-self-hosting/wiki/Edge%E2%80%90TTS%E2%80%90Voices), [Natural voices need Edge + internet](https://learn.microsoft.com/en-us/answers/a/2428002)
+- speechSynthesis cut-off: [W3C browser support table](https://docs.w3cub.com/browser_support_tables/speech-synthesis), [PhET issue](https://github.com/phetsims/utterance-queue/issues/60), [Caktus (2025)](https://www.caktusgroup.com/blog/2025/11/03/the-halting-problem/), [Kartones](https://blog.kartones.net/post/web-speech-api/)
+- Web Speech STT: [MDN processLocally](https://developer.mozilla.org/docs/Web/API/SpeechRecognition/processLocally), [MDN available()](https://developer.mozilla.org/docs/Web/API/SpeechRecognition/available_static), [Edge speech recognition docs](https://learn.microsoft.com/fi-fi/microsoft-edge/web-platform/speech-recognition-api), [Blink intent to ship](https://groups.google.com/a/chromium.org/g/blink-dev/c/VNOok2dbmHM/m/TQpe9shjCgAJ), [W3C list on restarts](https://lists.w3.org/Archives/Public/public-speech-api/2015May/0000.html), [Android hi-IN code-switch test](https://hackernoon.com/testing-androids-on-device-speech-recognition-with-hindi-english-code-switching)
+- Deepgram: [code-switching docs](https://developers.deepgram.com/docs/multilingual-code-switching), [changelog 2025-03-31](https://developers.deepgram.com/changelog/2025/3/31), [token auth](https://developers.deepgram.com/guides/fundamentals/token-based-authentication), [pricing (third-party)](https://convertaudiototext.com/blog/deepgram-nova-3-explained)
+- Sarvam: [STT overview](https://docs.sarvam.ai/api-reference-docs/speech-to-text/apis/overview), [streaming WS](https://docs.sarvam.ai/api-reference-docs/speech-to-text/transcribe/ws), [CallMissed listing](https://www.callmissed.com/models/saaras-v3)
+- Pricing: [Gemini 2.5 Flash-Lite (aggregator)](https://anotherwrapper.com/tools/llm-pricing/gemini-2.5-flash-lite), [Azure TTS (third-party)](https://speechactors.com/article/microsoft-azure-pricing-and-plans)
+- Browser APIs: [MDN deviceMemory](https://developer.mozilla.org/docs/Web/API/Navigator/deviceMemory), [Castle on deviceMemory](https://blog.castle.io/deep-dive-how-navigator-devicememory-can-be-used-for-fingerprinting-and-bot-detection/), [MDN storage quotas](https://developer.mozilla.org/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria), [WebKit storage policy](https://webkit.org/?p=14403), [Frontend Masters](https://frontendmasters.com/courses/web-storage-apis/quotas-persistence)
+- Transformers.js: [v4.3.0 release](https://newreleases.io/project/github/huggingface/transformers.js/release/4.3.0), [releases](https://github.com/huggingface/transformers.js/releases)
