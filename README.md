@@ -31,8 +31,8 @@ Use **Chrome or Edge** on a laptop. Edge has the most natural Indian English and
 |---|---|
 | `npm run dev` | Dev server |
 | `npm run build` | Typecheck + production build to `dist/` (deploy anywhere static) |
-| `npm test` | Unit tests (Vitest): sentence splitting, context trimming, scoring, call state machine |
-| `npm run test:e2e` | Playwright: full demo call in Chromium |
+| `npm test` | Unit tests (Vitest): sentence splitting, context trimming, scoring, call state machine, Hinglish handling |
+| `npm run test:e2e` | Playwright: full demo calls in Chromium (English and Hinglish) |
 
 ## How it works
 
@@ -64,6 +64,10 @@ Mic → Web Speech API (en-IN / hi-IN) → CallController ──► LLM provider
   - Firefox has no speech recognition; type instead.
   - Hinglish recognition quality is untested. `hi-IN` handles mixed speech best, but unevenly.
 - **Small on-device models are weak at Hindi** and can drift out of character. Use Gemma 2 2B or a cloud model for Hindi.
+- **Hinglish:** recognition uses `hi-IN`, which usually writes English words in Devanagari ("pilot" → पायलट).
+  - The scorecard checks include those spellings.
+  - Any sentence containing Devanagari is read by the Hindi voice, because English voices can't read Devanagari.
+  - Tested so far with the scripted buyer and typed input only, not yet with a real model, mic or voices.
 - **No headphones means no interrupting.** The mic is ignored while the buyer talks, to avoid echo.
 - **Latency** depends on the laptop. The metrics line under the chat shows first-word time, first-audio time and tok/s; use it to compare machines.
 - **The scorecard** is keyword and word-count heuristics, not an AI judge.

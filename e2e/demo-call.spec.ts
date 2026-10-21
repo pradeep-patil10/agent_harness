@@ -13,11 +13,14 @@ test("demo call: type replies, buyer answers, call ends with a scorecard", async
   await expect(page.getByTestId("call-state")).toHaveText(/Your turn/);
 
   const reply = page.getByLabel("Your reply");
+  const myTurn = () => expect(page.getByTestId("call-state")).toHaveText(/Your turn/);
+  await myTurn();
   await reply.fill("Hi Ramesh, how do you plan routes today?");
   await reply.press("Enter");
   await expect(page.getByText("what exactly does it cost", { exact: false })).toBeVisible();
   await expect(page.getByTestId("metrics")).toContainText("tok/s");
 
+  await myTurn();
   await reply.fill("We usually save 10 percent on fuel. Can we do a pilot next week?");
   await reply.press("Enter");
   await expect(page.getByText("Our current vendor is half the price", { exact: false })).toBeVisible();

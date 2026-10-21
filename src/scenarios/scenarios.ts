@@ -2,7 +2,11 @@ import type { LanguageMode } from "../lib/types";
 
 export interface CoachingCheck {
   label: string;
-  /** Rep passes if any of these phrases appears in their speech (lower-cased match). */
+  /**
+   * Rep passes if any of these phrases appears in their speech (lower-cased match).
+   * With hi-IN recognition, English words usually come back in Devanagari
+   * ("pilot" → "पायलट"), so list those spellings too.
+   */
   anyOf: string[];
   tip: string;
 }
@@ -27,13 +31,13 @@ export interface Scenario {
 
 const DISCOVERY: CoachingCheck = {
   label: "Asked about current process",
-  anyOf: ["currently", "today", "right now", "existing", "abhi", "अभी", "how do you", "what do you use", "kaise", "कैसे"],
+  anyOf: ["currently", "today", "right now", "existing", "how do you", "what do you use", "abhi", "aajkal", "kaise", "अभी", "आजकल", "कैसे", "करंटली"],
   tip: "Ask how they handle this today before pitching.",
 };
 
 const NEXT_STEP: CoachingCheck = {
   label: "Proposed a concrete next step",
-  anyOf: ["demo", "pilot", "trial", "meeting", "call next", "schedule", "calendar", "next week", "tomorrow", "kal", "कल", "पायलट", "डेमो"],
+  anyOf: ["demo", "pilot", "trial", "meeting", "call next", "schedule", "calendar", "next week", "tomorrow", "kal", "agle hafte", "कल", "अगले हफ्ते", "अगले हफ़्ते", "पायलट", "डेमो", "ट्रायल", "मीटिंग", "शेड्यूल", "नेक्स्ट वीक"],
   tip: "End by asking for a specific next step with a date.",
 };
 
@@ -65,8 +69,8 @@ export const SCENARIOS: Scenario[] = [
     },
     checks: [
       DISCOVERY,
-      { label: "Quantified ROI / savings", anyOf: ["roi", "save", "saving", "payback", "%", "percent", "lakh", "crore", "बचत", "bachat"], tip: "Turn the price objection into a savings number." },
-      { label: "Offered to reduce risk", anyOf: ["pilot", "trial", "guarantee", "reference", "case study", "cancel", "पायलट"], tip: "Reduce perceived risk with a pilot or a reference." },
+      { label: "Quantified ROI / savings", anyOf: ["roi", "save", "saving", "payback", "%", "percent", "lakh", "crore", "bachat", "बचत", "आरओआई", "सेविंग", "परसेंट", "प्रतिशत", "लाख", "करोड़"], tip: "Turn the price objection into a savings number." },
+      { label: "Offered to reduce risk", anyOf: ["pilot", "trial", "guarantee", "reference", "case study", "cancel", "पायलट", "ट्रायल", "गारंटी", "रेफरेंस", "केस स्टडी"], tip: "Reduce perceived risk with a pilot or a reference." },
       NEXT_STEP,
     ],
   },
@@ -96,9 +100,9 @@ export const SCENARIOS: Scenario[] = [
       hi: "नमस्ते, प्रिया बोल रही हूँ। मैं मीटिंग्स के बीच में हूँ, आप मुझे बस ईमेल कर दीजिए?",
     },
     checks: [
-      { label: "Led with a business outcome", anyOf: ["conversion", "sales", "revenue", "returns", "customers", "kharid", "बिक्री"], tip: "Open with their metric, not your features." },
+      { label: "Led with a business outcome", anyOf: ["conversion", "sales", "revenue", "returns", "customers", "kharid", "बिक्री", "कन्वर्ज़न", "कन्वर्जन", "सेल्स", "रेवेन्यू", "रिटर्न", "कस्टमर"], tip: "Open with their metric, not your features." },
       DISCOVERY,
-      { label: "Handled the 'send a deck' brush-off", anyOf: ["two minutes", "2 minutes", "one question", "quick question", "before i send", "deck", "डेक"], tip: "Acknowledge, then ask one sharp question before agreeing to send anything." },
+      { label: "Handled the 'send a deck' brush-off", anyOf: ["two minutes", "2 minutes", "one question", "quick question", "before i send", "deck", "do minute", "ek sawal", "डेक", "दो मिनट", "एक सवाल", "क्विक क्वेश्चन"], tip: "Acknowledge, then ask one sharp question before agreeing to send anything." },
       NEXT_STEP,
     ],
   },
@@ -129,8 +133,8 @@ export const SCENARIOS: Scenario[] = [
     },
     checks: [
       DISCOVERY,
-      { label: "Addressed migration risk", anyOf: ["migration", "migrate", "transfer", "import", "we will move", "free setup", "data"], tip: "Make switching feel safe: who moves the data, and how long it takes." },
-      { label: "Addressed staff training", anyOf: ["training", "train", "easy", "simple", "support", "whatsapp", "sikhayenge", "सिखा"], tip: "Explain how staff will learn it in a day." },
+      { label: "Addressed migration risk", anyOf: ["migration", "migrate", "transfer", "import", "we will move", "free setup", "data", "माइग्रेशन", "माइग्रेट", "ट्रांसफर", "डाटा", "डेटा", "सेटअप"], tip: "Make switching feel safe: who moves the data, and how long it takes." },
+      { label: "Addressed staff training", anyOf: ["training", "train", "easy", "simple", "support", "whatsapp", "sikhayenge", "aasan", "सिखा", "ट्रेनिंग", "आसान", "सिंपल", "सपोर्ट", "व्हाट्सएप"], tip: "Explain how staff will learn it in a day." },
       NEXT_STEP,
     ],
   },

@@ -46,7 +46,7 @@ export default function App() {
     await providerRef.current?.dispose();
     providerRef.current = null;
     let provider: LLMProvider;
-    if (prefs.engine === "demo") provider = new MockProvider();
+    if (prefs.engine === "demo") provider = new MockProvider(prefs.language);
     else if (prefs.engine === "cloud") provider = new OpenAICompatProvider(prefs.cloud);
     else {
       const { WebLLMProvider } = await import("./llm/webllm");
@@ -62,7 +62,7 @@ export default function App() {
       await provider.dispose();
       setEngine({ phase: "error", message: err instanceof Error ? err.message : String(err) });
     }
-  }, [prefs.engine, prefs.cloud, prefs.modelBase, device]);
+  }, [prefs.engine, prefs.cloud, prefs.modelBase, prefs.language, device]);
 
   // Switching engine/model invalidates the loaded one.
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function App() {
       providerRef.current = null;
     }
     setEngine({ phase: "none" });
-  }, [prefs.engine, prefs.modelBase, prefs.cloud.baseUrl, prefs.cloud.model, prefs.cloud.apiKey]);
+  }, [prefs.engine, prefs.modelBase, prefs.cloud.baseUrl, prefs.cloud.model, prefs.cloud.apiKey, prefs.engine === "demo" ? prefs.language : ""]);
 
   const settings: CallSettings = {
     ...DEFAULT_SETTINGS,

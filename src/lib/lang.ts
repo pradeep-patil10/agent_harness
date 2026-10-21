@@ -19,7 +19,9 @@ export function sttLang(mode: LanguageMode): string {
 export function ttsLangFor(sentence: string, mode: LanguageMode): "en-IN" | "hi-IN" {
   if (mode === "en") return "en-IN";
   if (mode === "hi") return "hi-IN";
-  return devanagariRatio(sentence) > 0.2 ? "hi-IN" : "en-IN";
+  // English voices skip or garble Devanagari, while Hindi voices read English words
+  // passably, so any Devanagari at all goes to the Hindi voice.
+  return devanagariRatio(sentence) > 0 ? "hi-IN" : "en-IN";
 }
 
 export interface VoiceLike {

@@ -7,8 +7,11 @@ import type { ScoreItem, TranscriptTurn } from "./types";
 const QUESTION_STARTS = [
   "what", "how", "why", "when", "which", "who", "where", "can you", "could you", "would you",
   "do you", "does", "did you", "is there", "are you", "is it", "have you", "tell me",
-  "kya", "kaise", "kyun", "kyon", "kab", "kaun", "kitna", "kitne", "kahan",
-  "क्या", "कैसे", "क्यों", "कब", "कौन", "कितना", "कितने", "कहाँ", "बताइए",
+];
+// Hindi puts the question word mid-sentence ("aap kitna kharch karte hain"), so match anywhere.
+const HINDI_QUESTION_WORDS = [
+  "kya", "kaise", "kyun", "kyon", "kab", "kaun", "kitna", "kitne", "kitni", "kahan", "batayiye", "bataiye",
+  "क्या", "कैसे", "क्यों", "कब", "कौन", "कितना", "कितने", "कितनी", "कहाँ", "बताइए", "बताइये",
 ];
 const FILLERS = ["um", "umm", "uh", "uhh", "hmm", "like", "basically", "actually", "you know", "i mean", "sort of", "kind of", "matlab", "मतलब", "वो", "toh"];
 
@@ -18,12 +21,13 @@ export function countQuestions(text: string): number {
   const marks = (text.match(/[?？]/g) ?? []).length;
   const lower = text.toLowerCase();
   // Each clause that opens with a question word counts as one question.
-  const clauses = lower.split(/[.!?।,]|\band\b|\bor\b/);
+  const clauses = lower.split(/[.!?।,]|\band\b|\bor\b|(?:^|\s)(?:और|या|aur|ya)(?=\s|$)/u);
   let byWord = 0;
-  for (const c of clauses) {
-    const t = c.trim();
+  for (const c of clauses ?? []) {
+    const t = (c ?? "").trim();
+    const tokens = t.split(/\s+/);
     if (QUESTION_STARTS.some(q => t.startsWith(q + " ") || t === q)) byWord++;
-    else if (/(^|\s)(kya|क्या)(\s|$)/u.test(t)) byWord++;
+    else if (tokens.some(w => HINDI_QUESTION_WORDS.includes(w))) byWord++;
   }
   return Math.max(marks, byWord);
 }
